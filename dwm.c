@@ -813,7 +813,7 @@ drawtab(Monitor *m) {
 	/* Calculates number of labels and their width */
 	m->ntabs = 0;
 	for(c = m->clients; c; c = c->next){
-	  if(!ISVISIBLE(c)) continue;
+	  if(!ISVISIBLE(c) || c->isfloating) continue;
 	  m->tab_widths[m->ntabs] = (int)TEXTW(c->name);
 	  ++m->ntabs;
 	  if(m->ntabs >= MAXTABS) break;
@@ -825,7 +825,7 @@ drawtab(Monitor *m) {
 	i = 0;
 	int tm; /* middle of the tab*/
 	for(c = m->clients; c; c = c->next){
-	  if(!ISVISIBLE(c)) continue;
+	  if(!ISVISIBLE(c) || c->isfloating) continue;
 	  if(i >= m->ntabs) break;
 	  m->tab_widths[i] = maxsize;
 	  /* add the remainder to the last tab so there is no leftover space left*/
@@ -1977,7 +1977,7 @@ updatebarpos(Monitor *m)
 	}
 
 	for(c = m->clients; c; c = c->next) {
-		if(ISVISIBLE(c)) ++nvis;
+		if(ISVISIBLE(c) && !c->isfloating) ++nvis;
 	}
 
 	if(m->showtab == showtab_always
