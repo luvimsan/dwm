@@ -8,12 +8,12 @@ PATCHES=(
     "tag-apps"
     "center"
     "noborder"
+    "bidi"
     "myconfig"
 )
 
 echo "Resetting stage to clean master..."
-git checkout stage
-git reset --hard master
+git switch -C stage master
 
 for patch in "${PATCHES[@]}"; do
     echo "Merging $patch..."
