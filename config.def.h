@@ -8,10 +8,12 @@ static const int topbar             = 1;        /* 0 means bottom bar */
 /*  Display modes of the tab bar: never shown, always shown, shown only in  */
 /*  monocle mode in the presence of several windows.                        */
 /*  Modes after showtab_nmodes are disabled.                                */
-enum showtab_modes { showtab_never, showtab_auto, showtab_nmodes, showtab_always};
+    enum showtab_modes { showtab_never, showtab_auto, showtab_nmodes, showtab_always};
 static const int showtab			= showtab_auto;        /* Default tab bar show mode */
 static const int toptab				= True;                /* False means bottom tab bar */
 
+static const int splitstatus        = 1;        /* 1 for split status items */
+static const char *splitdelim       = ";";       /* Character used for separating status */
 static const char *fonts[]          = { "monospace:size=10" };
 static const char dmenufont[]       = "monospace:size=10";
 static const char col_gray1[]       = "#222222";
