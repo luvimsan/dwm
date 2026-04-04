@@ -29,6 +29,17 @@ static const char *colors[][3]      = {
 
 /* tagging */
 static const char *tags[] = { "1", "2", "3", "4", "5", "6", "7", "8", "9" };
+static const char *defaulttagapps[] = {
+    "brave",
+    "/home/loaay/dotfiles/scripts/mpv_gui.sh",
+    NULL,
+    "/home/loaay/dotfiles/scripts/gemini.sh",
+    NULL,
+    NULL,
+    NULL,
+    "/home/loaay/dotfiles/scripts/telegram.sh",
+    "/home/loaay/dotfiles/scripts/excalidraw.sh",
+};
 
 static const Rule rules[] = {
 	/* xprop(1):
@@ -77,6 +88,7 @@ static const Key keys[] = {
 	{ MODKEY,                       XK_p,      spawn,          {.v = dmenucmd } },
 	{ MODKEY|ShiftMask,             XK_Return, spawn,          {.v = termcmd } },
 	{ MODKEY,                       XK_o,      togglescratch,  {.v = scratchpadcmd } },
+	{ MODKEY,                       XK_s,      spawndefault,   {0} },
 	{ MODKEY,                       XK_b,      togglebar,      {0} },
 	{ MODKEY|ShiftMask,             XK_w,      tabmode,        {-1} },
 	{ MODKEY,                       XK_j,      focusstack,     {.i = +1 } },
