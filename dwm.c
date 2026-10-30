@@ -55,6 +55,7 @@
 #define HEIGHT(X)               ((X)->h + 2 * (X)->bw)
 #define TAGMASK                 ((1 << LENGTH(tags)) - 1)
 #define TEXTW(X)                (drw_fontset_getwidth(drw, (X)) + lrpad)
+#define XDND_VERSION            5
 
 /* enums */
 enum { CurNormal, CurResize, CurMove, CurLast }; /* cursor */
@@ -63,6 +64,8 @@ enum { NetSupported, NetWMName, NetWMState, NetWMCheck,
        NetWMFullscreen, NetActiveWindow, NetWMWindowType,
        NetWMWindowTypeDialog, NetClientList, NetLast }; /* EWMH atoms */
 enum { WMProtocols, WMDelete, WMState, WMTakeFocus, WMLast }; /* default atoms */
+enum { XdndAware, XdndEnter, XdndLeave, XdndPosition, XdndStatus,
+       XdndDrop, XdndFinished, XdndLast }; /* XDND drag and drop atoms */
 enum { ClkTagBar, ClkTabBar, ClkLtSymbol, ClkStatusText, ClkWinTitle,
        ClkClientWin, ClkRootWin, ClkLast }; /* clicks */
 
@@ -181,6 +184,11 @@ static void focusin(XEvent *e);
 static void focusmon(const Arg *arg);
 static void focusstack(const Arg *arg);
 static void focuswin(const Arg* arg);
+static void xdndenter(XClientMessageEvent *cme);
+static void xdndleave(XClientMessageEvent *cme);
+static void xdndposition(XClientMessageEvent *cme);
+static void xdnddrop(XClientMessageEvent *cme);
+static void xdndreply(XClientMessageEvent *cme);
 static Atom getatomprop(Client *c, Atom prop);
 static int getrootptr(int *x, int *y);
 static long getstate(Window w);
@@ -280,7 +288,7 @@ static void (*handler[LASTEvent]) (XEvent *) = {
 	[PropertyNotify] = propertynotify,
 	[UnmapNotify] = unmapnotify
 };
-static Atom wmatom[WMLast], netatom[NetLast];
+static Atom wmatom[WMLast], netatom[NetLast], xdndatom[XdndLast];
 static int running = 1;
 static Cur *cursor[CurLast];
 static Clr **scheme;
@@ -574,6 +582,17 @@ clientmessage(XEvent *e)
 {
 	XClientMessageEvent *cme = &e->xclient;
 	Client *c = wintoclient(cme->window);
+
+	/* XDND messages target the bars or root, not a client, and must be
+	   checked before the early return below */
+	if (cme->message_type == xdndatom[XdndEnter])
+		xdndenter(cme);
+	else if (cme->message_type == xdndatom[XdndPosition])
+		xdndposition(cme);
+	else if (cme->message_type == xdndatom[XdndLeave])
+		xdndleave(cme);
+	else if (cme->message_type == xdndatom[XdndDrop])
+		xdnddrop(cme);
 
 	if (!c)
 		return;
@@ -996,6 +1015,116 @@ focuswin(const Arg* arg){
     focus(c);
     restack(selmon);
   }
+}
+
+void
+xdndenter(XClientMessageEvent *cme)
+{
+	/* a drag whose source is XDND-aware entered a bar or root gaps;
+	   each XdndPosition is handled statelessly, nothing to remember */
+}
+
+void
+xdndleave(XClientMessageEvent *cme)
+{
+	/* drag left the bars / root; nothing to clean up */
+	(void)cme;
+}
+
+void
+xdndposition(XClientMessageEvent *cme)
+{
+	Monitor *m;
+	Client *c;
+	Arg arg = {0};
+	int x, y;
+	unsigned int i, xx;
+
+	/* x, y are packed root coordinates: high word x, low word y */
+	x = (int)(cme->data.l[2] >> 16);
+	y = (int)(cme->data.l[2] & 0xffff);
+
+	m = recttomon(x, y, x, y);
+	if (!m)
+		return;
+	if (m != selmon) { /* focus the monitor under the pointer, like a click */
+		unfocus(selmon->sel, 1);
+		selmon = m;
+		focus(NULL);
+	}
+
+	/* over the tag bar: switch view, same geometry as a click on a tag */
+	if (m->by >= 0 && y >= m->by && y < m->by + bh
+	&& x >= m->wx && x < m->wx + m->ww) {
+		i = xx = 0;
+		do
+			xx += TEXTW(tags[i]);
+		while (x - m->wx >= (int)xx && ++i < LENGTH(tags));
+		if (i < LENGTH(tags) && m->tagset[m->seltags] != (1 << i)) {
+			arg.ui = 1 << i;
+			view(&arg);
+		}
+	}
+
+	/* over the tab bar: focus the hovered tab, same geometry as a click */
+	if (m->ty >= 0 && y >= m->ty && y < m->ty + th
+	&& x >= m->wx && x < m->wx + m->ww) {
+		i = 0;
+		xx = 0;
+		for (c = m->clients; c; c = c->next) {
+			if (!ISVISIBLE(c))
+				continue;
+			xx += m->tab_widths[i];
+			if (x - m->wx > (int)xx)
+				++i;
+			else
+				break;
+			if (i >= m->ntabs)
+				break;
+		}
+		if (c && c != selmon->sel) {
+			arg.i = i;
+			focuswin(&arg);
+		}
+	}
+
+	xdndreply(cme); /* we are an observer, never a drop target */
+}
+
+void
+xdnddrop(XClientMessageEvent *cme)
+{
+	/* the button was released while over a bar or root gaps: dwm only
+	   observes drags to switch tags/tabs and never accepts the drop,
+	   so politely reject it so the source does not hang */
+	XEvent ev;
+
+	memset(&ev, 0, sizeof ev);
+	ev.xclient.type = ClientMessage;
+	ev.xclient.window = cme->data.l[0]; /* the drag source */
+	ev.xclient.message_type = xdndatom[XdndFinished];
+	ev.xclient.format = 32;
+	ev.xclient.data.l[0] = cme->window; /* us, the drop target */
+	ev.xclient.data.l[1] = 0; /* not accepted */
+	XSendEvent(dpy, cme->data.l[0], False, NoEventMask, &ev);
+}
+
+void
+xdndreply(XClientMessageEvent *cme)
+{
+	/* answer the source's position query: with accept = 0 we keep
+	   receiving positions while the pointer crosses tags/tabs, and a
+	   drop on the bar itself is silently refused (zero rect keeps the
+	   source polling on every motion) */
+	XEvent ev;
+
+	memset(&ev, 0, sizeof ev);
+	ev.xclient.type = ClientMessage;
+	ev.xclient.window = cme->data.l[0]; /* the drag source */
+	ev.xclient.message_type = xdndatom[XdndStatus];
+	ev.xclient.format = 32;
+	ev.xclient.data.l[0] = cme->window; /* us, the queried target */
+	XSendEvent(dpy, cme->data.l[0], False, NoEventMask, &ev);
 }
 
 Atom
@@ -1761,6 +1890,7 @@ setup(void)
 	int i;
 	XSetWindowAttributes wa;
 	Atom utf8string;
+	long xdndver = XDND_VERSION;
 	struct sigaction sa;
 
 	/* do not transform children into zombies when they terminate */
@@ -1799,6 +1929,16 @@ setup(void)
 	netatom[NetWMWindowType] = XInternAtom(dpy, "_NET_WM_WINDOW_TYPE", False);
 	netatom[NetWMWindowTypeDialog] = XInternAtom(dpy, "_NET_WM_WINDOW_TYPE_DIALOG", False);
 	netatom[NetClientList] = XInternAtom(dpy, "_NET_CLIENT_LIST", False);
+	xdndatom[XdndAware] = XInternAtom(dpy, "XdndAware", False);
+	xdndatom[XdndEnter] = XInternAtom(dpy, "XdndEnter", False);
+	xdndatom[XdndLeave] = XInternAtom(dpy, "XdndLeave", False);
+	xdndatom[XdndPosition] = XInternAtom(dpy, "XdndPosition", False);
+	xdndatom[XdndStatus] = XInternAtom(dpy, "XdndStatus", False);
+	xdndatom[XdndDrop] = XInternAtom(dpy, "XdndDrop", False);
+	xdndatom[XdndFinished] = XInternAtom(dpy, "XdndFinished", False);
+	/* be visible to XDND drags so tags/tabs can be switched while dragging */
+	XChangeProperty(dpy, root, xdndatom[XdndAware], XA_ATOM, 32,
+		PropModeReplace, (unsigned char *) &xdndver, 1);
 	/* init cursors */
 	cursor[CurNormal] = drw_cur_create(drw, XC_left_ptr);
 	cursor[CurResize] = drw_cur_create(drw, XC_sizing);
@@ -2129,6 +2269,15 @@ updatebars(void)
 		XDefineCursor(dpy, m->tabwin, cursor[CurNormal]->cursor);
 		XMapRaised(dpy, m->tabwin);
 		XSetClassHint(dpy, m->barwin, &ch);
+		/* make the bars XDND-aware so dragging over tags/tabs
+		   reaches dwm and can switch them */
+		if (xdndatom[XdndAware]) {
+			long xdndver = XDND_VERSION;
+			XChangeProperty(dpy, m->barwin, xdndatom[XdndAware], XA_ATOM, 32,
+				PropModeReplace, (unsigned char *) &xdndver, 1);
+			XChangeProperty(dpy, m->tabwin, xdndatom[XdndAware], XA_ATOM, 32,
+				PropModeReplace, (unsigned char *) &xdndver, 1);
+		}
 	}
 }
 

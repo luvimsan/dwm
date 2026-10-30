@@ -30,14 +30,14 @@ static const char *colors[][3]      = {
 static const char *tags[] = { "1", "2", "3", "4", "5", "6", "7", "8", "9" };
 static const char *defaulttagapps[] = {
     "brave",
-    "/home/loaay/dotfiles/scripts/mpv_gui.sh",
+    "/home/luvimsan/dotfiles/scripts/mpv_gui.sh",
     NULL,
-    "/home/loaay/dotfiles/scripts/gemini.sh",
+    "/home/luvimsan/dotfiles/scripts/gemini.sh",
     NULL,
     NULL,
     NULL,
-    "/home/loaay/dotfiles/scripts/telegram.sh",
-    "/home/loaay/dotfiles/scripts/excalidraw.sh",
+    "/home/luvimsan/dotfiles/scripts/telegram.sh",
+    "/home/luvimsan/dotfiles/scripts/excalidraw.sh",
 };
 
 static const Rule rules[] = {
@@ -84,9 +84,9 @@ static const char *scratchpadcmd[] = { "st", "-t", scratchpadname, NULL };
 
 static const Key keys[] = {
 	/* modifier                     key        function        argument */
-	{ MODKEY,                       XK_p,      spawn,          {.v = dmenucmd } },
+	// { MODKEY,                       XK_p,      spawn,          {.v = dmenucmd } },
     { MODKEY,                       XK_o,      togglescratch,  {.v = scratchpadcmd } },
-    { MODKEY,                       XK_s,      spawndefault,   {0} },
+    // { MODKEY,                       XK_s,      spawndefault,   {0} },
     { MODKEY|ShiftMask,             XK_w,      tabmode,        {-1} },
     { MODKEY|ShiftMask,             XK_j,      pushdown,       {0} },
     { MODKEY|ShiftMask,             XK_k,      pushup,         {0} },
